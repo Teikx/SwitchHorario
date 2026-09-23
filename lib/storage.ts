@@ -82,9 +82,30 @@ export async function getPlayers(): Promise<Player[]> {
     if (data && data.length > 0) {
       return data as Player[];
     }
+
+    // Si la tabla players existe en Supabase pero está vacía, sembrar por defecto
+    try {
+      const { data: inserted } = await supabase
+        .from('players')
+        .insert(DEFAULT_PLAYERS.map(p => ({
+          name: p.name,
+          avatar: p.avatar,
+          color: p.color,
+          pin_hash: p.pin_hash || '1234',
+        })))
+        .select();
+
+      if (inserted && inserted.length > 0) {
+        return inserted as Player[];
+      }
+    } catch (e) {
+      console.warn('Auto-siembra en Supabase:', e);
+    }
+
+    return DEFAULT_PLAYERS;
   }
 
-  // Fallback en navegador (localStorage)
+  // Fallback en navegador (localStorage solo si NO hay Supabase)
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(PLAYERS_KEY);
     if (saved) {
@@ -94,7 +115,6 @@ export async function getPlayers(): Promise<Player[]> {
         console.error('Error parseando players de localStorage:', e);
       }
     }
-    // Inicializar por defecto
     localStorage.setItem(PLAYERS_KEY, JSON.stringify(DEFAULT_PLAYERS));
   }
 
@@ -156,21 +176,25 @@ export async function getBookings(): Promise<Booking[]> {
 
     if (error) {
       console.error('Error al obtener reservas de Supabase:', error);
-    } else if (data) {
+      return [];
+    }
+    
+    if (data) {
       return data.map(b => ({
         ...b,
         player: b.player || playersMap.get(b.player_id),
       })) as Booking[];
     }
+
+    return [];
   }
 
-  // Fallback Local
+  // Fallback Local (solo si NO hay Supabase configurado)
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(BOOKINGS_KEY);
     if (saved) {
       try {
         const parsed: Booking[] = JSON.parse(saved);
-        // Enlazar datos de jugador
         return parsed.map(b => ({
           ...b,
           player: playersMap.get(b.player_id) || b.player,
@@ -180,13 +204,13 @@ export async function getBookings(): Promise<Booking[]> {
       }
     }
 
-    // Inicializar muestras
+    // Inicializar muestras solo en modo local
     const sample = getInitialSampleBookings(players);
     localStorage.setItem(BOOKINGS_KEY, JSON.stringify(sample));
     return sample;
   }
 
-  return getInitialSampleBookings(players);
+  return [];
 }
 
 export async function createBooking(

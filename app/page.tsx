@@ -19,11 +19,15 @@ import { PlayersModal } from '@/components/PlayersModal';
 import { ReleaseModal } from '@/components/ReleaseModal';
 import { RulesModal } from '@/components/RulesModal';
 
+import { DEFAULT_PLAYERS } from '@/lib/constants';
+
 export default function HomePage() {
-  const [players, setPlayers] = useState<Player[]>([]);
+  // Inicializar con DEFAULT_PLAYERS para evitar parpadeos en blanco al cargar
+  const [players, setPlayers] = useState<Player[]>(DEFAULT_PLAYERS);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [supabaseActive, setSupabaseActive] = useState<boolean>(false);
+  const [tablesMissingNotice, setTablesMissingNotice] = useState<boolean>(false);
 
   // Modals state
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -46,6 +50,11 @@ export default function HomePage() {
           const cfg = await res.json();
           if (cfg.isConfigured && cfg.url && cfg.key) {
             setRuntimeConfig(cfg.url, cfg.key);
+          }
+          if (cfg.isConfigured && cfg.tablesReady === false) {
+            setTablesMissingNotice(true);
+          } else {
+            setTablesMissingNotice(false);
           }
         }
       } catch (e) {
@@ -171,6 +180,17 @@ export default function HomePage() {
 
       {/* Contenido Principal enfocado en el Calendario */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-3.5">
+        {/* Aviso si falta ejecutar schema.sql en Supabase */}
+        {tablesMissingNotice && (
+          <div className="bg-amber-950/40 border border-amber-500/40 p-3.5 rounded-xl text-xs text-amber-200 flex items-start gap-2.5 shadow-md animate-in fade-in duration-200">
+            <span className="text-base">⚠️</span>
+            <div className="leading-relaxed">
+              <strong>Paso final en Supabase:</strong> Estás conectado, pero aún no has ejecutado el script de tablas.
+              Ve a tu panel de Supabase ➔ <strong>SQL Editor</strong>, pega el código de <code className="bg-black/50 px-1.5 py-0.5 rounded text-amber-300">schema.sql</code> y presiona <strong>RUN</strong>.
+            </div>
+          </div>
+        )}
+
         {/* Barra de Estado en Vivo (con soporte para turnos sin límite fijo) */}
         <LiveStatusStrip
           bookings={bookings}
@@ -202,11 +222,17 @@ export default function HomePage() {
           <div className="flex items-center space-x-2 text-[11px]">
             <span
               className={`w-2 h-2 rounded-full ${
-                supabaseActive ? 'bg-[#10E364]' : 'bg-[#00C3E3]'
+                loading
+                  ? 'bg-amber-400 animate-pulse'
+                  : supabaseActive
+                  ? 'bg-[#10E364]'
+                  : 'bg-[#00C3E3]'
               }`}
             />
             <span className="text-gray-400">
-              {supabaseActive
+              {loading
+                ? 'Sincronizando...'
+                : supabaseActive
                 ? 'Conectado a Supabase'
                 : 'Modo Local (localStorage)'}
             </span>
