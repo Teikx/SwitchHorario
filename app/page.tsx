@@ -12,14 +12,13 @@ import {
 } from '@/lib/storage';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { SwitchHeader } from '@/components/SwitchHeader';
-import { LiveStatusCard } from '@/components/LiveStatusCard';
+import { LiveStatusStrip } from '@/components/LiveStatusStrip';
 import { CalendarView } from '@/components/CalendarView';
 import { BookingModal } from '@/components/BookingModal';
 import { PlayersModal } from '@/components/PlayersModal';
 import { ReleaseModal } from '@/components/ReleaseModal';
 import { RulesModal } from '@/components/RulesModal';
-import { Database, Sparkles, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { addHours, formatISO } from 'date-fns';
+import { addHours } from 'date-fns';
 
 export default function HomePage() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -93,12 +92,7 @@ export default function HomePage() {
       setIsPlayersOpen(true);
       return;
     }
-
-    // Si ya hay alguien jugando, no se puede
     const now = new Date();
-    const end = addHours(now, 1);
-
-    // Abrir modal con la hora actual pre-seleccionada
     setPreSelectedSlot({ date: now, hour: now.getHours() });
     setIsBookingOpen(true);
   };
@@ -142,8 +136,8 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0d0e13]">
-      {/* Header temático Nintendo Switch */}
+    <div className="min-h-screen flex flex-col bg-[#0b0c11] text-[#ededf0]">
+      {/* Header minimalista y compacto */}
       <SwitchHeader
         onOpenBooking={() => {
           setPreSelectedSlot(null);
@@ -151,63 +145,21 @@ export default function HomePage() {
         }}
         onOpenPlayers={() => setIsPlayersOpen(true)}
         onOpenRules={() => setIsRulesOpen(true)}
+        playersCount={players.length}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Banner de Estado de Base de Datos */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-[#151722] border border-[#272a3a] text-xs">
-          <div className="flex items-center space-x-2">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                supabaseActive ? 'bg-[#10E364] animate-pulse' : 'bg-[#00C3E3]'
-              }`}
-            />
-            <span className="font-bold text-gray-200">
-              {supabaseActive
-                ? 'Conectado a Supabase (Sincronización en la nube activa)'
-                : 'Modo Local Listo (Almacenamiento en navegador - Puedes conectar Supabase gratis)'}
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-3 text-gray-400">
-            <button
-              onClick={loadData}
-              className="flex items-center space-x-1 hover:text-white transition-colors"
-              title="Recargar datos"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Actualizar</span>
-            </button>
-            <span className="text-gray-600">|</span>
-            <span>{players.length} primos registrados</span>
-          </div>
-        </div>
-
-        {/* Hero Card: Estado en Vivo (En Juego Ahora / Disponible) */}
-        <LiveStatusCard
+      {/* Contenido Principal enfocado en el Calendario */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-3.5">
+        {/* Barra de Estado en Vivo (delgada, compacta y elegante) */}
+        <LiveStatusStrip
           bookings={bookings}
           players={players}
           onQuickPlay={handleQuickPlay}
-          onOpenBooking={() => {
-            setPreSelectedSlot(null);
-            setIsBookingOpen(true);
-          }}
           onRequestRelease={handleRequestRelease}
         />
 
-        {/* Calendario Interactivo */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                <span>Calendario de Turnos</span>
-                <span className="text-xs px-2 py-0.5 rounded-md bg-[#222435] text-gray-300 font-normal">
-                  Toca una hora vacía para reservar
-                </span>
-              </h2>
-            </div>
-          </div>
-
+        {/* El Calendario como protagonista principal */}
+        <section className="w-full">
           <CalendarView
             bookings={bookings}
             players={players}
@@ -217,16 +169,26 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#20222f] bg-[#101118] py-6 text-center text-xs text-gray-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      {/* Footer discreto con estado de sincronización */}
+      <footer className="border-t border-[#1b1c26] bg-[#0e0f16] py-3 text-xs text-gray-500">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
-            <span className="font-black text-white">SwitchHorario</span>
+            <span className="font-bold text-gray-400">SwitchHorario</span>
             <span>•</span>
-            <span>Sistema familiar de turnos para Nintendo Switch</span>
+            <span>Turnos de Nintendo Switch</span>
           </div>
-          <div className="text-gray-400">
-            Diseñado para desplegar en <strong className="text-white">Vercel</strong> con base de datos <strong className="text-white">Supabase</strong>.
+
+          <div className="flex items-center space-x-2 text-[11px]">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                supabaseActive ? 'bg-[#10E364]' : 'bg-[#00C3E3]'
+              }`}
+            />
+            <span className="text-gray-400">
+              {supabaseActive
+                ? 'Conectado a Supabase'
+                : 'Modo Local (localStorage)'}
+            </span>
           </div>
         </div>
       </footer>

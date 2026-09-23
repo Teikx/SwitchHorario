@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Booking, Player, CalendarViewMode } from '@/lib/types';
 import {
   getWeekDays,
@@ -13,12 +13,11 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar as CalendarIcon,
   Plus,
-  Clock,
   Gamepad2,
   Trash2,
-  CheckCircle,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import {
   addDays,
@@ -28,7 +27,6 @@ import {
   parseISO,
   getHours,
   getMinutes,
-  differenceInMinutes,
   format,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -49,6 +47,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<Booking | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
+
+  // Reloj para la línea roja de hora actual
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const weekDays = getWeekDays(currentDate);
 
@@ -93,70 +98,92 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       const slotEnd = new Date(day);
       slotEnd.setHours(hour + 1, 0, 0, 0);
 
-      // Si empieza en esta hora o la cruza
       return s.getTime() < slotEnd.getTime() && e.getTime() > slotStart.getTime();
     });
   };
 
+  // Posición de la línea de tiempo actual (en porcentaje respecto a CALENDAR_HOURS)
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const isNowInCalendar = currentHour >= 8 && currentHour <= 23;
+
   return (
-    <div className="rounded-2xl bg-[#15161f] border border-[#272938] shadow-xl overflow-hidden">
-      {/* Calendar Top Toolbar */}
-      <div className="p-4 sm:p-5 border-b border-[#272938] flex flex-wrap items-center justify-between gap-4 bg-[#181923]">
-        {/* Navigation & Title */}
+    <div className="rounded-2xl bg-[#14151e] border border-[#242636] shadow-xl overflow-hidden flex flex-col">
+      {/* ========================================================= */}
+      {/* TOOLBAR SUPERIOR DEL CALENDARIO */}
+      {/* ========================================================= */}
+      <div className="p-3.5 sm:p-4 border-b border-[#242636] flex flex-wrap items-center justify-between gap-3 bg-[#171824]/90">
+        {/* Navegación y Título */}
         <div className="flex items-center space-x-3">
-          <div className="flex items-center bg-[#222432] rounded-xl p-1 border border-[#313346]">
+          <div className="flex items-center bg-[#1e202e] rounded-lg p-0.5 border border-[#2c2f42]">
             <button
               onClick={handlePrev}
-              className="p-1.5 rounded-lg text-gray-300 hover:text-white hover:bg-[#2c2f42] transition-colors"
+              className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-[#282a3c] transition-colors"
               title="Anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={handleGoToday}
-              className="px-2.5 py-1 text-xs font-bold text-gray-200 hover:text-white hover:bg-[#2c2f42] rounded-lg transition-colors"
+              className="px-2.5 py-1 text-xs font-bold text-gray-300 hover:text-white hover:bg-[#282a3c] rounded transition-colors"
             >
               Hoy
             </button>
             <button
               onClick={handleNext}
-              className="p-1.5 rounded-lg text-gray-300 hover:text-white hover:bg-[#2c2f42] transition-colors"
+              className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-[#282a3c] transition-colors"
               title="Siguiente"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <h3 className="text-base sm:text-lg font-bold text-white capitalize flex items-center gap-2">
-            <CalendarIcon className="w-4 h-4 text-[#00C3E3]" />
+          <h3 className="text-base sm:text-lg font-black text-white capitalize">
             {viewMode === 'week'
               ? `${format(weekDays[0], 'd MMM', { locale: es })} - ${format(weekDays[6], 'd MMM yyyy', { locale: es })}`
               : formatFullDate(currentDate)}
           </h3>
         </div>
 
-        {/* View Switcher (Semana / Día) */}
-        <div className="flex items-center space-x-1.5 bg-[#202230] p-1 rounded-xl border border-[#2d3042]">
-          <button
-            onClick={() => setViewMode('week')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              viewMode === 'week'
-                ? 'bg-[#FF3C28] text-white shadow-md'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Vista Semanal
-          </button>
-          <button
-            onClick={() => setViewMode('day')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              viewMode === 'day'
-                ? 'bg-[#00C3E3] text-white shadow-md'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            Vista Diaria
-          </button>
+        {/* Primos Legend Compacta & Selector de Vista */}
+        <div className="flex items-center space-x-3 ml-auto">
+          {/* Mini avatares de primos */}
+          <div className="hidden lg:flex items-center space-x-1.5 bg-[#1b1c28] px-2.5 py-1 rounded-lg border border-[#282a3a]">
+            {players.map(p => (
+              <span
+                key={p.id}
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white font-bold ring-1 ring-white/10"
+                style={{ backgroundColor: p.color }}
+                title={`${p.name} (${getAvatarMeta(p.avatar).name})`}
+              >
+                {getAvatarMeta(p.avatar).emoji}
+              </span>
+            ))}
+          </div>
+
+          {/* Toggle Vista: Semana / Día */}
+          <div className="flex items-center bg-[#1e202e] p-0.5 rounded-lg border border-[#2c2f42]">
+            <button
+              onClick={() => setViewMode('week')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                viewMode === 'week'
+                  ? 'bg-[#FF3C28] text-white shadow'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Semana
+            </button>
+            <button
+              onClick={() => setViewMode('day')}
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                viewMode === 'day'
+                  ? 'bg-[#00C3E3] text-white shadow'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              Día
+            </button>
+          </div>
         </div>
       </div>
 
@@ -165,10 +192,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* ========================================================= */}
       {viewMode === 'week' && (
         <div className="overflow-x-auto">
-          <div className="min-w-[760px]">
-            {/* Header de días */}
-            <div className="grid grid-cols-8 border-b border-[#272938] bg-[#1a1b26] sticky top-0 z-20">
-              <div className="p-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider border-r border-[#272938]">
+          <div className="min-w-[740px]">
+            {/* Cabecera de Días */}
+            <div className="grid grid-cols-8 border-b border-[#232535] bg-[#161722] sticky top-0 z-20">
+              <div className="p-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-[#232535]">
                 Hora
               </div>
               {weekDays.map(day => {
@@ -180,20 +207,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       setCurrentDate(day);
                       setViewMode('day');
                     }}
-                    className={`p-3 text-center cursor-pointer transition-colors border-r border-[#272938] last:border-r-0 ${
+                    className={`p-2.5 text-center cursor-pointer transition-colors border-r border-[#232535] last:border-r-0 ${
                       dayIsToday
-                        ? 'bg-[#FF3C28]/10 text-white border-b-2 border-b-[#FF3C28]'
-                        : 'hover:bg-[#202231] text-gray-300'
+                        ? 'bg-[#FF3C28]/10 text-white'
+                        : 'hover:bg-[#1b1c28] text-gray-400'
                     }`}
                   >
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                    <div className="text-[10px] font-bold uppercase tracking-wider">
                       {format(day, 'EEE', { locale: es })}
                     </div>
                     <div
-                      className={`text-sm sm:text-base font-black mt-0.5 inline-flex items-center justify-center w-7 h-7 rounded-full ${
+                      className={`text-sm font-black mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full ${
                         dayIsToday
-                          ? 'bg-[#FF3C28] text-white shadow-md'
-                          : 'text-white'
+                          ? 'bg-[#FF3C28] text-white shadow-sm'
+                          : 'text-gray-200'
                       }`}
                     >
                       {format(day, 'd')}
@@ -203,58 +230,73 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               })}
             </div>
 
-            {/* Grid de Horarios */}
-            <div className="divide-y divide-[#232534]">
+            {/* Grilla de Horarios */}
+            <div className="divide-y divide-[#202230]">
               {CALENDAR_HOURS.map(hour => (
-                <div key={hour} className="grid grid-cols-8 min-h-[58px]">
-                  {/* Etiqueta de la hora */}
-                  <div className="p-2 text-center text-xs font-mono text-gray-400 border-r border-[#272938] flex items-center justify-center bg-[#181924]/60">
-                    {hour === 12 ? '12:00 PM' : hour < 12 ? `${hour}:00 AM` : `${hour - 12}:00 PM`}
+                <div key={hour} className="grid grid-cols-8 min-h-[54px]">
+                  {/* Columna de hora */}
+                  <div className="p-2 text-center text-xs font-mono text-gray-400 border-r border-[#232535] flex items-center justify-center bg-[#13141d]/50">
+                    {hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`}
                   </div>
 
-                  {/* Celdas para cada día de la semana */}
+                  {/* Celdas para cada día */}
                   {weekDays.map(day => {
                     const booking = getBookingAtSlot(day, hour);
-                    const isStartOfBooking =
-                      booking && getHours(parseISO(booking.start_time)) === hour;
+                    const dayIsToday = isToday(day);
+                    const isCurrentHourSlot = dayIsToday && currentHour === hour;
 
                     return (
                       <div
                         key={day.toISOString() + hour}
-                        className="relative border-r border-[#232534] last:border-r-0 p-1 group transition-colors hover:bg-[#1c1d29]"
+                        className={`relative border-r border-[#202230] last:border-r-0 p-1 group transition-colors ${
+                          dayIsToday ? 'bg-white/[0.015]' : ''
+                        } hover:bg-[#191a26]`}
                       >
+                        {/* Indicador de hora actual si aplica */}
+                        {isCurrentHourSlot && (
+                          <div
+                            className="absolute left-0 right-0 z-10 border-t-2 border-[#FF3C28] pointer-events-none flex items-center"
+                            style={{ top: `${(currentMinute / 60) * 100}%` }}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-[#FF3C28] -ml-1 -mt-0.5" />
+                          </div>
+                        )}
+
                         {booking ? (
-                          // Si es el inicio de la reserva o celda continua
+                          // Tarjeta de Reserva con diseño minimalista moderno
                           <div
                             onClick={() => setSelectedBookingForDetail(booking)}
-                            className="w-full h-full min-h-[50px] rounded-lg p-1.5 cursor-pointer text-white shadow-sm flex flex-col justify-between transition-all transform hover:scale-[1.02] border border-white/20"
+                            className="w-full h-full min-h-[46px] rounded-lg px-2 py-1.5 cursor-pointer text-white shadow-sm flex flex-col justify-between transition-all transform hover:scale-[1.01] border"
                             style={{
-                              backgroundColor: booking.player?.color || '#FF3C28',
+                              backgroundColor: `${booking.player?.color || '#FF3C28'}22`,
+                              borderColor: `${booking.player?.color || '#FF3C28'}66`,
+                              borderLeftWidth: '3.5px',
+                              borderLeftColor: booking.player?.color || '#FF3C28',
                             }}
                           >
                             <div className="flex items-center justify-between gap-1">
-                              <span className="text-xs font-black truncate drop-shadow-sm flex items-center gap-1">
+                              <span className="text-xs font-bold truncate flex items-center gap-1 text-white">
                                 <span>{getAvatarMeta(booking.player?.avatar || 'mario').emoji}</span>
                                 <span className="truncate">{booking.player?.name}</span>
                               </span>
-                              <span className="text-[10px] font-bold bg-black/30 px-1 py-0.2 rounded text-white/90">
+                              <span className="text-[10px] font-mono text-gray-300">
                                 {formatFriendlyTime(booking.start_time)}
                               </span>
                             </div>
 
-                            <div className="text-[11px] font-medium truncate opacity-95 flex items-center gap-1 mt-0.5">
-                              <Gamepad2 className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{booking.game_title}</span>
+                            <div className="text-[11px] text-gray-300 truncate flex items-center gap-1 mt-0.5">
+                              <Gamepad2 className="w-3 h-3 text-[#00C3E3] flex-shrink-0" />
+                              <span className="truncate font-medium">{booking.game_title}</span>
                             </div>
                           </div>
                         ) : (
-                          // Celda libre
+                          // Espacio Libre (Clic para reservar)
                           <button
                             onClick={() => onSelectSlot(day, hour)}
-                            className="w-full h-full min-h-[50px] rounded-lg border border-dashed border-transparent group-hover:border-[#383b50] flex items-center justify-center text-gray-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-[#26283a] hover:text-[#00C3E3]"
-                            title="Reservar en este horario"
+                            className="w-full h-full min-h-[46px] rounded-lg border border-transparent group-hover:border-[#2f3246] flex items-center justify-center text-gray-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-[#202234] hover:text-[#00C3E3]"
+                            title="Toca para reservar este horario"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
@@ -271,48 +313,57 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* VISTA DIARIA */}
       {/* ========================================================= */}
       {viewMode === 'day' && (
-        <div className="p-4 sm:p-6 divide-y divide-[#252737]">
+        <div className="p-3 sm:p-5 divide-y divide-[#202230]">
           {CALENDAR_HOURS.map(hour => {
             const booking = getBookingAtSlot(currentDate, hour);
-            const isStart = booking && getHours(parseISO(booking.start_time)) === hour;
+            const isCurrentSlot = isToday(currentDate) && currentHour === hour;
 
             return (
               <div
                 key={hour}
-                className="py-3 flex items-center gap-4 group hover:bg-[#1a1b28] px-3 rounded-xl transition-all"
+                className={`py-2.5 flex items-center gap-3 group hover:bg-[#181926] px-2.5 rounded-xl transition-all ${
+                  isCurrentSlot ? 'bg-[#FF3C28]/5' : ''
+                }`}
               >
                 {/* Hora */}
-                <div className="w-20 text-xs sm:text-sm font-mono text-gray-400 font-semibold">
+                <div className="w-16 text-xs font-mono text-gray-400 font-semibold">
                   {hour === 12 ? '12:00 PM' : hour < 12 ? `${hour}:00 AM` : `${hour - 12}:00 PM`}
                 </div>
 
-                {/* Contenido */}
+                {/* Contenedor del turno */}
                 <div className="flex-1">
                   {booking ? (
                     <div
                       onClick={() => setSelectedBookingForDetail(booking)}
-                      className="p-3 sm:p-4 rounded-xl cursor-pointer text-white shadow-md flex items-center justify-between border border-white/20 transition-transform hover:scale-[1.01]"
-                      style={{ backgroundColor: booking.player?.color || '#FF3C28' }}
+                      className="p-3 rounded-xl cursor-pointer text-white shadow-sm flex items-center justify-between border transition-transform hover:scale-[1.005]"
+                      style={{
+                        backgroundColor: `${booking.player?.color || '#FF3C28'}22`,
+                        borderColor: `${booking.player?.color || '#FF3C28'}66`,
+                        borderLeftWidth: '4px',
+                        borderLeftColor: booking.player?.color || '#FF3C28',
+                      }}
                     >
                       <div className="flex items-center space-x-3">
-                        <div className="text-2xl bg-black/20 p-2 rounded-xl">
+                        <div
+                          className="w-9 h-9 rounded-lg flex items-center justify-center text-xl shadow-sm"
+                          style={{ backgroundColor: booking.player?.color || '#FF3C28' }}
+                        >
                           {getAvatarMeta(booking.player?.avatar || 'mario').emoji}
                         </div>
                         <div>
                           <div className="flex items-center space-x-2">
-                            <span className="font-black text-base sm:text-lg">
+                            <span className="font-bold text-sm text-white">
                               {booking.player?.name}
                             </span>
-                            <span className="text-xs bg-black/30 px-2 py-0.5 rounded-full font-mono">
-                              {formatFriendlyTime(booking.start_time)} -{' '}
-                              {formatFriendlyTime(booking.end_time)}
+                            <span className="text-[11px] text-gray-300 font-mono">
+                              {formatFriendlyTime(booking.start_time)} - {formatFriendlyTime(booking.end_time)}
                             </span>
                           </div>
-                          <div className="text-xs sm:text-sm opacity-90 flex items-center gap-1.5 mt-0.5">
-                            <Gamepad2 className="w-4 h-4" />
+                          <div className="text-xs text-gray-300 flex items-center gap-1.5 mt-0.5">
+                            <Gamepad2 className="w-3.5 h-3.5 text-[#00C3E3]" />
                             <span>{booking.game_title}</span>
                             {booking.notes && (
-                              <span className="text-white/70 italic hidden sm:inline">
+                              <span className="text-gray-400 italic hidden sm:inline">
                                 • {booking.notes}
                               </span>
                             )}
@@ -320,24 +371,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          setSelectedBookingForDetail(booking);
-                        }}
-                        className="px-3 py-1.5 text-xs font-bold bg-black/30 hover:bg-black/50 rounded-lg transition-colors"
-                      >
-                        Ver Detalle
-                      </button>
+                      <span className="text-xs text-gray-400 hover:text-white">Ver</span>
                     </div>
                   ) : (
                     <button
                       onClick={() => onSelectSlot(currentDate, hour)}
-                      className="w-full py-2.5 px-4 rounded-xl border border-dashed border-[#2f3246] hover:border-[#00C3E3]/60 hover:bg-[#202334] text-xs sm:text-sm text-gray-400 hover:text-white transition-all flex items-center justify-between"
+                      className="w-full py-2 px-3 rounded-xl border border-dashed border-[#272a3a] hover:border-[#00C3E3]/50 hover:bg-[#1c1e2b] text-xs text-gray-500 hover:text-gray-300 transition-all flex items-center justify-between"
                     >
-                      <span>Libre para jugar</span>
-                      <span className="text-xs text-[#00C3E3] font-bold flex items-center gap-1">
-                        <Plus className="w-3.5 h-3.5" /> Reservar
+                      <span>Disponible</span>
+                      <span className="text-[11px] text-[#00C3E3] font-semibold flex items-center gap-1">
+                        <Plus className="w-3 h-3" /> Reservar
                       </span>
                     </button>
                   )}
@@ -349,38 +392,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* LEYENDA INFERIOR DE PRIMOS */}
-      {/* ========================================================= */}
-      <div className="p-4 border-t border-[#272938] bg-[#161722] flex flex-wrap items-center justify-between gap-3 text-xs">
-        <span className="text-gray-400 font-semibold">Jugadores registrados:</span>
-        <div className="flex flex-wrap items-center gap-2">
-          {players.map(p => (
-            <div
-              key={p.id}
-              className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#1e202e] border border-[#2f3246]"
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: p.color }}
-              />
-              <span className="font-bold text-gray-200">{p.name}</span>
-              <span className="text-gray-500 text-[10px]">
-                {getAvatarMeta(p.avatar).emoji}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ========================================================= */}
       {/* MODAL DETALLE DE RESERVA / CANCELACIÓN */}
       {/* ========================================================= */}
       {selectedBookingForDetail && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1a1b26] border border-[#2f3246] rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#171824] border border-[#2b2e40] rounded-2xl max-w-sm w-full p-5 shadow-2xl animate-in fade-in zoom-in duration-150">
             <div className="flex items-center space-x-3 mb-4">
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-md"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-md"
                 style={{
                   backgroundColor: selectedBookingForDetail.player?.color || '#FF3C28',
                 }}
@@ -388,16 +407,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {getAvatarMeta(selectedBookingForDetail.player?.avatar || 'mario').emoji}
               </div>
               <div>
-                <h4 className="text-xl font-black text-white">
+                <h4 className="text-base font-black text-white">
                   {selectedBookingForDetail.player?.name}
                 </h4>
-                <p className="text-xs text-gray-400">
-                  Reserva para Nintendo Switch
-                </p>
+                <p className="text-xs text-gray-400">Reserva de Nintendo Switch</p>
               </div>
             </div>
 
-            <div className="space-y-3 bg-[#13141d] p-4 rounded-xl border border-[#262838] text-sm mb-6">
+            <div className="space-y-2 bg-[#12131b] p-3 rounded-xl border border-[#222434] text-xs mb-5">
               <div className="flex justify-between items-center text-gray-300">
                 <span className="text-gray-500">Fecha:</span>
                 <span className="font-semibold text-white">
@@ -414,35 +431,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="flex justify-between items-center text-gray-300">
                 <span className="text-gray-500">Juego:</span>
                 <span className="font-semibold text-white flex items-center gap-1">
-                  <Gamepad2 className="w-4 h-4 text-[#FF3C28]" />
+                  <Gamepad2 className="w-3.5 h-3.5 text-[#FF3C28]" />
                   {selectedBookingForDetail.game_title}
                 </span>
               </div>
               {selectedBookingForDetail.notes && (
-                <div className="border-t border-[#262838] pt-2 text-xs text-gray-400">
+                <div className="border-t border-[#222434] pt-2 text-gray-400">
                   <span className="font-semibold text-gray-300">Nota:</span>{' '}
                   {selectedBookingForDetail.notes}
                 </div>
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => {
-                  if (confirm('¿Estás seguro de que deseas cancelar este turno?')) {
+                  if (confirm('¿Deseas cancelar esta reserva?')) {
                     onCancelBooking(selectedBookingForDetail.id);
                     setSelectedBookingForDetail(null);
                   }
                 }}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 bg-red-950/30 hover:bg-red-950/60 border border-red-500/30 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2 rounded-xl text-xs font-bold text-red-400 bg-red-950/20 hover:bg-red-950/50 border border-red-500/20 transition-colors flex items-center gap-1.5"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Cancelar Turno</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Cancelar</span>
               </button>
 
               <button
                 onClick={() => setSelectedBookingForDetail(null)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#2c2f42] hover:bg-[#383c54] transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#25283a] hover:bg-[#30344a] transition-colors"
               >
                 Cerrar
               </button>
