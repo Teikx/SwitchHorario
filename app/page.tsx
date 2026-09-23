@@ -10,7 +10,7 @@ import {
   cancelBooking,
   releaseBookingEarly,
 } from '@/lib/storage';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, setRuntimeConfig } from '@/lib/supabase';
 import { SwitchHeader } from '@/components/SwitchHeader';
 import { LiveStatusStrip } from '@/components/LiveStatusStrip';
 import { CalendarView } from '@/components/CalendarView';
@@ -39,13 +39,27 @@ export default function HomePage() {
   // Load initial data
   const loadData = async () => {
     try {
+      // 1. Sincronizar credenciales con el servidor (por si Vercel las tiene en runtime)
+      try {
+        const res = await fetch('/api/config', { cache: 'no-store' });
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.isConfigured && cfg.url && cfg.key) {
+            setRuntimeConfig(cfg.url, cfg.key);
+          }
+        }
+      } catch (e) {
+        console.warn('Verificando configuración local...');
+      }
+
+      setSupabaseActive(isSupabaseConfigured());
+
       const [loadedPlayers, loadedBookings] = await Promise.all([
         getPlayers(),
         getBookings(),
       ]);
       setPlayers(loadedPlayers);
       setBookings(loadedBookings);
-      setSupabaseActive(isSupabaseConfigured());
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
