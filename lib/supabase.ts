@@ -20,7 +20,16 @@ export function getSupabaseUrl(): string {
 
 export function getSupabaseAnonKey(): string {
   if (runtimeKey) return runtimeKey;
-  const raw = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const raw =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_KEY ||
+    process.env.SUPABASE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    '';
   return cleanString(raw);
 }
 
@@ -28,9 +37,12 @@ export function setRuntimeConfig(url: string, key: string) {
   const cUrl = cleanString(url);
   const cKey = cleanString(key);
   if (cUrl && cKey) {
-    runtimeUrl = cUrl.startsWith('http') ? cUrl : `https://${cUrl}`;
-    runtimeKey = cKey;
-    supabaseInstance = null; // Reiniciar instancia con las nuevas credenciales
+    const formattedUrl = cUrl.startsWith('http') ? cUrl : `https://${cUrl}`;
+    if (runtimeUrl !== formattedUrl || runtimeKey !== cKey) {
+      runtimeUrl = formattedUrl;
+      runtimeKey = cKey;
+      supabaseInstance = null; // Reiniciar instancia con las nuevas credenciales
+    }
   }
 }
 
@@ -56,10 +68,29 @@ export const getSupabaseClient = (): SupabaseClient | null => {
   const key = getSupabaseAnonKey();
 
   if (!supabaseInstance) {
+    // Interceptor global para compatibilidad con las nuevas API keys de Supabase (sb_publishable_ / sb_secret_)
+    // Supabase JS añade por defecto el encabezado 'Authorization: Bearer <key>'.
+    // PostgREST requiere que 'Authorization' sea un JWT válido. Como las nuevas claves sb_ son opacas (no JWT),
+    // PostgREST rechaza la petición con HTTP 401 Unauthorized si se envía en el encabezado Authorization.
+    // Al remover el encabezado Authorization cuando la clave es sb_, PostgREST lee el encabezado 'apikey: sb_...'
+    // y autentica la consulta correctamente.
+    const customFetch: typeof fetch = (fetchUrl, options = {}) => {
+      const headers = new Headers(options.headers);
+      const auth = headers.get('Authorization') || headers.get('authorization');
+      if (auth && (auth.includes('Bearer sb_') || auth.includes('bearer sb_'))) {
+        headers.delete('Authorization');
+        headers.delete('authorization');
+      }
+      return fetch(fetchUrl, { ...options, headers });
+    };
+
     supabaseInstance = createClient(url, key, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
+      },
+      global: {
+        fetch: customFetch,
       },
     });
   }

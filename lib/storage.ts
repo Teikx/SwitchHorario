@@ -165,8 +165,6 @@ export async function addPlayer(newPlayer: Omit<Player, 'id' | 'created_at'>): P
 
 export async function getBookings(): Promise<Booking[]> {
   const supabase = getSupabaseClient();
-  const players = await getPlayers();
-  const playersMap = new Map(players.map(p => [p.id, p]));
 
   if (supabase) {
     const { data, error } = await supabase
@@ -180,16 +178,16 @@ export async function getBookings(): Promise<Booking[]> {
     }
     
     if (data) {
-      return data.map(b => ({
-        ...b,
-        player: b.player || playersMap.get(b.player_id),
-      })) as Booking[];
+      return data as Booking[];
     }
 
     return [];
   }
 
   // Fallback Local (solo si NO hay Supabase configurado)
+  const players = await getPlayers();
+  const playersMap = new Map(players.map(p => [p.id, p]));
+
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(BOOKINGS_KEY);
     if (saved) {
@@ -245,6 +243,7 @@ export async function createBooking(
         start_time: bookingData.start_time,
         end_time: bookingData.end_time,
         status: 'active',
+        is_open_ended: bookingData.is_open_ended || false,
         notes: bookingData.notes || '',
       }])
       .select('*, player:players(*)')

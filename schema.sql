@@ -53,10 +53,20 @@ CREATE POLICY "Permitir lectura publica de reservas" ON bookings
 CREATE POLICY "Permitir crear y modificar reservas" ON bookings
   FOR ALL USING (true);
 
--- 3. Datos iniciales de ejemplo (Primos por defecto)
-INSERT INTO players (name, avatar, color, pin_hash) VALUES
-  ('Carlos', 'mario', '#FF3C28', '1234'),
-  ('Mateo', 'luigi', '#10E364', '1234'),
-  ('Lucía', 'peach', '#FF69B4', '1234'),
-  ('Santi', 'link', '#00C3E3', '1234')
-ON CONFLICT DO NOTHING;
+-- 3. Datos iniciales de ejemplo (Primos por defecto, solo se insertan si no existen)
+INSERT INTO players (name, avatar, color, pin_hash)
+SELECT 'Carlos', 'mario', '#FF3C28', '1234'
+WHERE NOT EXISTS (SELECT 1 FROM players WHERE name = 'Carlos');
+
+INSERT INTO players (name, avatar, color, pin_hash)
+SELECT 'Mateo', 'luigi', '#10E364', '1234'
+WHERE NOT EXISTS (SELECT 1 FROM players WHERE name = 'Mateo');
+
+INSERT INTO players (name, avatar, color, pin_hash)
+SELECT 'Lucía', 'peach', '#FF69B4', '1234'
+WHERE NOT EXISTS (SELECT 1 FROM players WHERE name = 'Lucía');
+
+INSERT INTO players (name, avatar, color, pin_hash)
+SELECT 'Santi', 'link', '#00C3E3', '1234'
+WHERE NOT EXISTS (SELECT 1 FROM players WHERE name = 'Santi');
+
