@@ -28,6 +28,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [supabaseActive, setSupabaseActive] = useState<boolean>(false);
   const [tablesMissingNotice, setTablesMissingNotice] = useState<boolean>(false);
+  const [tableErrorMsg, setTableErrorMsg] = useState<string | null>(null);
 
   // Modals state
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -53,8 +54,10 @@ export default function HomePage() {
           }
           if (cfg.isConfigured && cfg.tablesReady === false) {
             setTablesMissingNotice(true);
+            setTableErrorMsg(cfg.tableError || 'No se pudo conectar a la tabla players.');
           } else {
             setTablesMissingNotice(false);
+            setTableErrorMsg(null);
           }
         }
       } catch (e) {
@@ -180,13 +183,19 @@ export default function HomePage() {
 
       {/* Contenido Principal enfocado en el Calendario */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-3.5">
-        {/* Aviso si falta ejecutar schema.sql en Supabase */}
+        {/* Aviso si hay algún detalle con Supabase */}
         {tablesMissingNotice && (
-          <div className="bg-amber-950/40 border border-amber-500/40 p-3.5 rounded-xl text-xs text-amber-200 flex items-start gap-2.5 shadow-md animate-in fade-in duration-200">
-            <span className="text-base">⚠️</span>
-            <div className="leading-relaxed">
-              <strong>Paso final en Supabase:</strong> Estás conectado, pero aún no has ejecutado el script de tablas.
-              Ve a tu panel de Supabase ➔ <strong>SQL Editor</strong>, pega el código de <code className="bg-black/50 px-1.5 py-0.5 rounded text-amber-300">schema.sql</code> y presiona <strong>RUN</strong>.
+          <div className="bg-amber-950/40 border border-amber-500/40 p-4 rounded-xl text-xs text-amber-200 shadow-md animate-in fade-in duration-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
+              <span>⚠️ Diagnóstico de Conexión a Supabase:</span>
+            </div>
+            {tableErrorMsg && (
+              <div className="bg-black/50 p-2.5 rounded font-mono text-[11px] text-red-200 break-words border border-red-500/20">
+                {tableErrorMsg}
+              </div>
+            )}
+            <div className="text-gray-300 text-[11px] leading-relaxed">
+              💡 <strong>Solución:</strong> Copia el contenido de <code className="bg-black/40 px-1 py-0.5 rounded text-amber-300">schema.sql</code> (actualizado con limpieza automática) y dale <strong>RUN</strong> en el <strong>SQL Editor</strong> de Supabase.
             </div>
           </div>
         )}

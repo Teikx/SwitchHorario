@@ -52,8 +52,16 @@ export const getSupabaseClient = (): SupabaseClient | null => {
     return null;
   }
 
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+
   if (!supabaseInstance) {
-    supabaseInstance = createClient(getSupabaseUrl(), getSupabaseAnonKey());
+    supabaseInstance = createClient(url, key, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
   }
 
   return supabaseInstance;

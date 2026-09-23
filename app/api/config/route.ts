@@ -11,15 +11,25 @@ export async function GET() {
 
     let tablesReady = false;
     let tableError: string | null = null;
+    let playersFound = 0;
 
     if (isConfigured) {
       const supabase = getSupabaseClient();
       if (supabase) {
-        const { error } = await supabase.from('players').select('id').limit(1);
-        if (error) {
-          tableError = error.message;
-        } else {
-          tablesReady = true;
+        try {
+          const { data, error, status } = await supabase
+            .from('players')
+            .select('id, name')
+            .limit(5);
+
+          if (error) {
+            tableError = `${error.message} (Código: ${error.code || status || 'N/A'})`;
+          } else {
+            tablesReady = true;
+            playersFound = data ? data.length : 0;
+          }
+        } catch (err: any) {
+          tableError = `Error de red al conectar a Supabase: ${err.message}`;
         }
       }
     }
@@ -28,6 +38,7 @@ export async function GET() {
       isConfigured,
       tablesReady,
       tableError,
+      playersFound,
       url: isConfigured ? url : null,
       key: isConfigured ? key : null,
     });

@@ -36,6 +36,11 @@ CREATE INDEX IF NOT EXISTS idx_bookings_player ON bookings (player_id);
 ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Permitir lectura publica de jugadores" ON players;
+DROP POLICY IF EXISTS "Permitir insercion y edicion de jugadores" ON players;
+DROP POLICY IF EXISTS "Permitir lectura publica de reservas" ON bookings;
+DROP POLICY IF EXISTS "Permitir crear y modificar reservas" ON bookings;
+
 CREATE POLICY "Permitir lectura publica de jugadores" ON players
   FOR SELECT USING (true);
 
