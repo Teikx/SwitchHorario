@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Booking, Player, CalendarViewMode } from '@/lib/types';
 import {
   getWeekDays,
-  CALENDAR_HOURS,
+  getDynamicCalendarHours,
+  FULL_CALENDAR_HOURS,
   getAvatarMeta,
   formatFriendlyTime,
   formatShortDate,
@@ -18,6 +19,9 @@ import {
   Trash2,
   Clock,
   Sparkles,
+  Zap,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import {
   addDays,
@@ -46,6 +50,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
+  const [isFullDay, setIsFullDay] = useState<boolean>(false);
+  const [expandedEarly, setExpandedEarly] = useState<boolean>(false);
+  const [expandedLate, setExpandedLate] = useState<boolean>(false);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<Booking | null>(null);
   const [now, setNow] = useState<Date>(new Date());
 
@@ -54,6 +61,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
+
+  // Reiniciar micro-expansores al cambiar de fecha
+  useEffect(() => {
+    setExpandedEarly(false);
+    setExpandedLate(false);
+  }, [currentDate]);
 
   const weekDays = getWeekDays(currentDate);
 
@@ -77,6 +90,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleGoToday = () => {
     setCurrentDate(new Date());
   };
+
+  // Cálculo dinámico de horas visibles
+  const baseHours = getDynamicCalendarHours(bookings, currentDate, isFullDay);
+  let minHour = Math.min(...baseHours);
+  let maxHour = Math.max(...baseHours);
+
+  if (expandedEarly) minHour = 8;
+  if (expandedLate) maxHour = 23;
+
+  const visibleHours = Array.from(
+    { length: maxHour - minHour + 1 },
+    (_, i) => minHour + i
+  );
 
   // Filtrar reservas para un día específico
   const getBookingsForDay = (day: Date) => {
@@ -102,19 +128,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     });
   };
 
-  // Posición de la línea de tiempo actual (en porcentaje respecto a CALENDAR_HOURS)
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
-  const isNowInCalendar = currentHour >= 8 && currentHour <= 23;
 
   return (
-    <div className="rounded-2xl bg-[#14151e] border border-[#242636] shadow-xl overflow-hidden flex flex-col">
+    <div className="rounded-2xl bg-[#14151e] border border-[#242636] shadow-xl overflow-hidden flex flex-col transition-all">
       {/* ========================================================= */}
       {/* TOOLBAR SUPERIOR DEL CALENDARIO */}
       {/* ========================================================= */}
-      <div className="p-3.5 sm:p-4 border-b border-[#242636] flex flex-wrap items-center justify-between gap-3 bg-[#171824]/90">
+      <div className="p-3 sm:p-4 border-b border-[#242636] flex flex-wrap items-center justify-between gap-3 bg-[#171824]/90">
         {/* Navegación y Título */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 sm:space-x-3">
           <div className="flex items-center bg-[#1e202e] rounded-lg p-0.5 border border-[#2c2f42]">
             <button
               onClick={handlePrev}
@@ -145,20 +169,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </h3>
         </div>
 
-        {/* Primos Legend Compacta & Selector de Vista */}
-        <div className="flex items-center space-x-3 ml-auto">
-          {/* Mini avatares de primos */}
-          <div className="hidden lg:flex items-center space-x-1.5 bg-[#1b1c28] px-2.5 py-1 rounded-lg border border-[#282a3a]">
-            {players.map(p => (
-              <span
-                key={p.id}
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white font-bold ring-1 ring-white/10"
-                style={{ backgroundColor: p.color }}
-                title={`${p.name} (${getAvatarMeta(p.avatar).name})`}
-              >
-                {getAvatarMeta(p.avatar).emoji}
-              </span>
-            ))}
+        {/* Controles: Rango Dinámico vs Completo & Vista Semana/Día */}
+        <div className="flex items-center space-x-2 sm:space-x-3 ml-auto">
+          {/* Selector de Rango de Horas Dinámico */}
+          <div className="flex items-center bg-[#1e202e] p-0.5 rounded-lg border border-[#2c2f42]">
+            <button
+              onClick={() => setIsFullDay(false)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 ${
+                !isFullDay
+                  ? 'bg-[#10E364]/20 text-[#10E364] border border-[#10E364]/40 font-bold'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              title="Ajusta el calendario solo a las horas de juego activas"
+            >
+              <Zap className="w-3 h-3 fill-current" />
+              <span>Horas Activas</span>
+            </button>
+            <button
+              onClick={() => setIsFullDay(true)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                isFullDay
+                  ? 'bg-[#2a2d3f] text-white shadow'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              title="Ver todo el día completo (8:00 AM - 11:00 PM)"
+            >
+              <span>Día Completo</span>
+            </button>
           </div>
 
           {/* Toggle Vista: Semana / Día */}
@@ -230,10 +267,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               })}
             </div>
 
-            {/* Grilla de Horarios */}
+            {/* Expansor de horas de la mañana si están ocultas */}
+            {!isFullDay && minHour > 8 && !expandedEarly && (
+              <button
+                onClick={() => setExpandedEarly(true)}
+                className="w-full py-1.5 text-[11px] font-bold text-gray-400 hover:text-white bg-[#111219] hover:bg-[#191b26] border-b border-[#232535] transition-colors flex items-center justify-center gap-1.5"
+                title="Expandir horas previas de la mañana"
+              >
+                <ChevronUp className="w-3.5 h-3.5 text-[#00C3E3]" />
+                <span>Mostrar mañana temprana (desde 8:00 AM)</span>
+              </button>
+            )}
+
+            {/* Grilla Dinámica de Horarios */}
             <div className="divide-y divide-[#202230]">
-              {CALENDAR_HOURS.map(hour => (
-                <div key={hour} className="grid grid-cols-8 min-h-[54px]">
+              {visibleHours.map(hour => (
+                <div key={hour} className="grid grid-cols-8 min-h-[52px]">
                   {/* Columna de hora */}
                   <div className="p-2 text-center text-xs font-mono text-gray-400 border-r border-[#232535] flex items-center justify-center bg-[#13141d]/50">
                     {hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`}
@@ -252,7 +301,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           dayIsToday ? 'bg-white/[0.015]' : ''
                         } hover:bg-[#191a26]`}
                       >
-                        {/* Indicador de hora actual si aplica */}
+                        {/* Línea de hora actual si aplica */}
                         {isCurrentHourSlot && (
                           <div
                             className="absolute left-0 right-0 z-10 border-t-2 border-[#FF3C28] pointer-events-none flex items-center"
@@ -263,7 +312,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         )}
 
                         {booking ? (
-                          // Tarjeta de Reserva con diseño minimalista moderno
                           <div
                             onClick={() => setSelectedBookingForDetail(booking)}
                             className="w-full h-full min-h-[46px] rounded-lg px-2 py-1.5 cursor-pointer text-white shadow-sm flex flex-col justify-between transition-all transform hover:scale-[1.01] border"
@@ -292,12 +340,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               </div>
                             ) : (
                               <div className="text-[10px] text-gray-400 truncate mt-0.5">
-                                {booking.is_open_ended ? 'Hasta liberar' : `${formatFriendlyTime(booking.start_time)} - ${formatFriendlyTime(booking.end_time)}`}
+                                {booking.is_open_ended
+                                  ? 'Hasta liberar'
+                                  : `${formatFriendlyTime(booking.start_time)} - ${formatFriendlyTime(booking.end_time)}`}
                               </div>
                             )}
                           </div>
                         ) : (
-                          // Espacio Libre (Clic para reservar)
                           <button
                             onClick={() => onSelectSlot(day, hour)}
                             className="w-full h-full min-h-[46px] rounded-lg border border-transparent group-hover:border-[#2f3246] flex items-center justify-center text-gray-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-[#202234] hover:text-[#00C3E3]"
@@ -312,6 +361,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               ))}
             </div>
+
+            {/* Expansor de horas de la noche si están ocultas */}
+            {!isFullDay && maxHour < 23 && !expandedLate && (
+              <button
+                onClick={() => setExpandedLate(true)}
+                className="w-full py-1.5 text-[11px] font-bold text-gray-400 hover:text-white bg-[#111219] hover:bg-[#191b26] border-t border-[#232535] transition-colors flex items-center justify-center gap-1.5"
+                title="Expandir horas posteriores de la noche"
+              >
+                <ChevronDown className="w-3.5 h-3.5 text-[#FF3C28]" />
+                <span>Mostrar noche (hasta 11:00 PM)</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -321,7 +382,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* ========================================================= */}
       {viewMode === 'day' && (
         <div className="p-3 sm:p-5 divide-y divide-[#202230]">
-          {CALENDAR_HOURS.map(hour => {
+          {!isFullDay && minHour > 8 && !expandedEarly && (
+            <button
+              onClick={() => setExpandedEarly(true)}
+              className="w-full py-2 mb-2 text-xs font-bold text-gray-400 hover:text-white bg-[#181926] rounded-xl border border-[#26283a] transition-colors flex items-center justify-center gap-1"
+            >
+              <ChevronUp className="w-3.5 h-3.5 text-[#00C3E3]" />
+              <span>Mostrar horas tempranas de la mañana</span>
+            </button>
+          )}
+
+          {visibleHours.map(hour => {
             const booking = getBookingAtSlot(currentDate, hour);
             const isCurrentSlot = isToday(currentDate) && currentHour === hour;
 
@@ -393,6 +464,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             );
           })}
+
+          {!isFullDay && maxHour < 23 && !expandedLate && (
+            <button
+              onClick={() => setExpandedLate(true)}
+              className="w-full py-2 mt-2 text-xs font-bold text-gray-400 hover:text-white bg-[#181926] rounded-xl border border-[#26283a] transition-colors flex items-center justify-center gap-1"
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-[#FF3C28]" />
+              <span>Mostrar horas nocturnas (hasta 11:00 PM)</span>
+            </button>
+          )}
         </div>
       )}
 

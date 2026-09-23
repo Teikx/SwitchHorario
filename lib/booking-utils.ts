@@ -11,7 +11,9 @@ import {
   startOfWeek,
   isBefore,
   isAfter,
-  isSameDay
+  isSameDay,
+  isSameWeek,
+  getHours
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -155,6 +157,76 @@ export function getWeekDays(baseDate: Date): Date[] {
 }
 
 /**
- * Horas del día soportadas en el calendario (8:00 AM a 11:00 PM)
+ * Horas del día estándar en el calendario (8:00 AM a 11:00 PM)
  */
-export const CALENDAR_HOURS = Array.from({ length: 16 }, (_, i) => i + 8); // 8 a 23
+export const FULL_CALENDAR_HOURS = Array.from({ length: 16 }, (_, i) => i + 8); // 8 a 23
+export const CALENDAR_HOURS = FULL_CALENDAR_HOURS;
+
+/**
+ * Calcula dinámicamente las horas relevantes a mostrar en el calendario
+ * según las reservas existentes y la hora actual, evitando filas vacías innecesarias.
+ */
+export function getDynamicCalendarHours(
+  bookings: Booking[],
+  currentDate: Date,
+  isFullDay: boolean = false
+): number[] {
+  if (isFullDay) {
+    return FULL_CALENDAR_HOURS;
+  }
+
+  const now = new Date();
+  const currentHour = now.getHours();
+  const hoursSet = new Set<number>();
+
+  // Si estamos en la semana o día actual, asegurar que la hora actual y cercanas estén disponibles
+  if (isSameWeek(currentDate, now, { weekStartsOn: 1 }) || isSameDay(currentDate, now)) {
+    hoursSet.add(Math.max(8, Math.min(23, currentHour - 1)));
+    hoursSet.add(Math.max(8, Math.min(23, currentHour)));
+    hoursSet.add(Math.max(8, Math.min(23, currentHour + 1)));
+    hoursSet.add(Math.max(8, Math.min(23, currentHour + 2)));
+  }
+
+  // Recolectar las horas de las reservas activas en el rango visible
+  bookings.forEach(b => {
+    if (b.status === 'cancelled') return;
+    const s = parseISO(b.start_time);
+    const e = parseISO(b.end_time);
+
+    // Solo considerar reservas de la misma semana o día visible
+    if (isSameWeek(s, currentDate, { weekStartsOn: 1 })) {
+      const sH = getHours(s);
+      const eH = getHours(e);
+      for (let h = sH; h <= eH && h <= 23; h++) {
+        if (h >= 8) hoursSet.add(h);
+      }
+    }
+  });
+
+  // Si no hay ninguna reserva en la semana, centrar en horas comunes de juego (tarde)
+  if (hoursSet.size === 0) {
+    const center = Math.max(13, Math.min(18, currentHour));
+    const start = Math.max(8, center - 2);
+    const end = Math.min(23, center + 4);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }
+
+  const hoursArray = Array.from(hoursSet);
+  let minH = Math.min(...hoursArray);
+  let maxH = Math.max(...hoursArray);
+
+  // Agregar 1 hora de margen antes y después
+  minH = Math.max(8, minH - 1);
+  maxH = Math.min(23, maxH + 1);
+
+  // Garantizar un rango mínimo de al menos 5 horas para buena presencia visual
+  if (maxH - minH < 5) {
+    if (maxH + (5 - (maxH - minH)) <= 23) {
+      maxH += 5 - (maxH - minH);
+    } else {
+      minH = Math.max(8, maxH - 5);
+    }
+  }
+
+  return Array.from({ length: maxH - minH + 1 }, (_, i) => minH + i);
+}
