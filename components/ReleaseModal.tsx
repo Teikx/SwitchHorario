@@ -62,8 +62,9 @@ export const ReleaseModal: React.FC<ReleaseModalProps> = ({
               ¿{booking.player?.name}, ya terminaste de jugar?
             </h4>
             <p className="text-xs text-gray-400 mt-1">
-              Estás jugando <strong>{booking.game_title}</strong> (programado hasta las{' '}
-              {formatFriendlyTime(booking.end_time)}).
+              {booking.is_open_ended
+                ? `Turno en curso desde las ${formatFriendlyTime(booking.start_time)}.`
+                : `Turno programado hasta las ${formatFriendlyTime(booking.end_time)}.`}
             </p>
           </div>
 

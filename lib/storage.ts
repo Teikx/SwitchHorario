@@ -210,13 +210,14 @@ export async function createBooking(
   }
 
   const supabase = getSupabaseClient();
+  const gameTitle = bookingData.game_title || 'Nintendo Switch';
 
   if (supabase) {
     const { data, error } = await supabase
       .from('bookings')
       .insert([{
         player_id: bookingData.player_id,
-        game_title: bookingData.game_title,
+        game_title: gameTitle,
         start_time: bookingData.start_time,
         end_time: bookingData.end_time,
         status: 'active',
@@ -229,7 +230,10 @@ export async function createBooking(
       return { success: false, error: `Error de base de datos: ${error.message}` };
     }
 
-    return { success: true, booking: data as Booking };
+    return {
+      success: true,
+      booking: { ...data, is_open_ended: bookingData.is_open_ended } as Booking,
+    };
   }
 
   // Fallback Local
@@ -238,6 +242,7 @@ export async function createBooking(
 
   const newBooking: Booking = {
     ...bookingData,
+    game_title: gameTitle,
     id: `b-${Date.now()}`,
     status: 'active',
     created_at: new Date().toISOString(),

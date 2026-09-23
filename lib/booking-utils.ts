@@ -118,6 +118,8 @@ export function getRemainingProgress(booking: Booking, now: Date = new Date()): 
   remainingMinutes: number;
   totalMinutes: number;
   progressPercent: number;
+  elapsedMinutes: number;
+  isOpenEnded: boolean;
   isFinished: boolean;
 } {
   const start = parseISO(booking.start_time);
@@ -127,13 +129,19 @@ export function getRemainingProgress(booking: Booking, now: Date = new Date()): 
   const remainingMinutes = Math.max(0, differenceInMinutes(end, now));
   const elapsedMinutes = Math.max(0, differenceInMinutes(now, start));
 
-  const progressPercent = Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalMinutes) * 100)));
+  const isOpenEnded = Boolean(booking.is_open_ended);
+
+  const progressPercent = isOpenEnded
+    ? 100
+    : Math.min(100, Math.max(0, Math.round((elapsedMinutes / totalMinutes) * 100)));
 
   return {
     remainingMinutes,
     totalMinutes,
     progressPercent,
-    isFinished: remainingMinutes <= 0,
+    elapsedMinutes,
+    isOpenEnded,
+    isFinished: !isOpenEnded && remainingMinutes <= 0,
   };
 }
 

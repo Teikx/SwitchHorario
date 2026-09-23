@@ -2,22 +2,23 @@
 
 import React, { useState, useEffect } from 'react';
 import { Player, Booking } from '@/lib/types';
-import { POPULAR_GAMES } from '@/lib/constants';
 import {
   findConflictingBooking,
   getAvatarMeta,
   formatFriendlyTime,
+  getNextUpcomingBooking,
 } from '@/lib/booking-utils';
 import {
   X,
   Calendar as CalendarIcon,
   Clock,
-  Gamepad2,
-  AlertTriangle,
+  Zap,
   CheckCircle2,
+  AlertTriangle,
   Sparkles,
+  Infinity as InfinityIcon,
 } from 'lucide-react';
-import { format, addMinutes, parseISO, setHours, setMinutes } from 'date-fns';
+import { format, addMinutes, addHours } from 'date-fns';
 import confetti from 'canvas-confetti';
 
 interface BookingModalProps {
@@ -27,11 +28,13 @@ interface BookingModalProps {
   existingBookings: Booking[];
   initialDate?: Date;
   initialHour?: number;
+  initialMode?: 'now' | 'scheduled';
   onSaveBooking: (bookingData: {
     player_id: string;
-    game_title: string;
+    game_title?: string;
     start_time: string;
     end_time: string;
+    is_open_ended?: boolean;
     notes?: string;
   }) => Promise<{ success: boolean; error?: string }>;
 }
@@ -43,25 +46,28 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   existingBookings,
   initialDate,
   initialHour,
+  initialMode = 'scheduled',
   onSaveBooking,
 }) => {
+  const [bookingMode, setBookingMode] = useState<'now' | 'scheduled'>('now');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [selectedDateStr, setSelectedDateStr] = useState<string>('');
-  const [selectedHour, setSelectedHour] = useState<number>(16); // 4 PM default
+  const [selectedHour, setSelectedHour] = useState<number>(16);
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
-  const [durationMinutes, setDurationMinutes] = useState<number>(60); // 1h default
-  const [selectedGame, setSelectedGame] = useState<string>(POPULAR_GAMES[0].title);
-  const [customGame, setCustomGame] = useState<string>('');
+  // 0 significa "Sin límite fijo / Hasta que libere"
+  const [durationMinutes, setDurationMinutes] = useState<number>(0);
+  const [customHours, setCustomHours] = useState<number>(3);
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Inicializar valores al abrir
   useEffect(() => {
     if (isOpen) {
       if (players.length > 0 && !selectedPlayerId) {
         setSelectedPlayerId(players[0].id);
       }
+
+      setBookingMode(initialMode);
 
       const base = initialDate || new Date();
       setSelectedDateStr(format(base, 'yyyy-MM-dd'));
@@ -69,29 +75,52 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       if (initialHour !== undefined) {
         setSelectedHour(initialHour);
         setSelectedMinute(0);
+        setBookingMode('scheduled');
+        setDurationMinutes(60); // si hace clic en el calendario, por defecto 1h
       } else {
         const now = new Date();
-        setSelectedHour(Math.min(22, Math.max(8, now.getHours() + 1)));
-        setSelectedMinute(0);
+        setSelectedHour(now.getHours());
+        setSelectedMinute(Math.floor(now.getMinutes() / 15) * 15);
+        if (initialMode === 'now') {
+          setDurationMinutes(0); // Sin límite por defecto al reservar ahora
+        }
       }
       setSubmitError(null);
     }
-  }, [isOpen, initialDate, initialHour, players]);
+  }, [isOpen, initialDate, initialHour, initialMode, players]);
 
   if (!isOpen) return null;
 
-  // Calcular fechas de inicio y fin para validación de colisión
+  // Calcular intervalo según el modo
   const calculateInterval = () => {
-    if (!selectedDateStr) return null;
-    const [year, month, day] = selectedDateStr.split('-').map(Number);
-    const start = new Date(year, month - 1, day, selectedHour, selectedMinute, 0);
-    const end = addMinutes(start, durationMinutes);
-    return { start, end };
+    let start: Date;
+    if (bookingMode === 'now') {
+      start = new Date();
+    } else {
+      if (!selectedDateStr) return null;
+      const [year, month, day] = selectedDateStr.split('-').map(Number);
+      start = new Date(year, month - 1, day, selectedHour, selectedMinute, 0);
+    }
+
+    // Si es sin límite fijo (0), asignamos 4 horas como bloque visual preliminar
+    const effectiveMinutes = durationMinutes === 0 ? 240 : durationMinutes;
+    const end = addMinutes(start, effectiveMinutes);
+
+    return {
+      start,
+      end,
+      isOpenEnded: durationMinutes === 0,
+    };
   };
 
   const interval = calculateInterval();
   const conflicting = interval
     ? findConflictingBooking(interval.start, interval.end, existingBookings)
+    : null;
+
+  // Próxima reserva para informar al jugador si alguien reservó más tarde
+  const nextBooking = interval
+    ? getNextUpcomingBooking(existingBookings, interval.start)
     : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,20 +142,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const gameTitle = selectedGame === 'Otro juego...' ? customGame.trim() || 'Juego variado' : selectedGame;
-
     const result = await onSaveBooking({
       player_id: selectedPlayerId,
-      game_title: gameTitle,
+      game_title: 'Nintendo Switch',
       start_time: interval.start.toISOString(),
       end_time: interval.end.toISOString(),
+      is_open_ended: interval.isOpenEnded,
       notes: notes.trim(),
     });
 
     setIsSubmitting(false);
 
     if (result.success) {
-      // Disparar confetti festivo
       confetti({
         particleCount: 80,
         spread: 70,
@@ -139,33 +166,56 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   };
 
-  const selectedPlayer = players.find(p => p.id === selectedPlayerId);
-
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[#171824] border border-[#2e3146] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200 my-8">
-        {/* Joy-Con top bar */}
+      <div className="bg-[#161722] border border-[#2b2e40] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150 my-6">
+        {/* Joy-Con top edge line */}
         <div className="h-1.5 w-full flex">
           <div className="w-1/2 bg-[#00C3E3]" />
           <div className="w-1/2 bg-[#FF3C28]" />
         </div>
 
-        {/* Header */}
-        <div className="p-5 border-b border-[#292c3f] flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-[#232638] text-white">
-              <CalendarIcon className="w-5 h-5 text-[#FF3C28]" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">Reservar Turno</h3>
-              <p className="text-xs text-gray-400">Agendar tiempo en la Nintendo Switch</p>
-            </div>
+        {/* Header con pestañas: Ahora Mismo vs Programar */}
+        <div className="p-4 sm:p-5 border-b border-[#262838] flex items-center justify-between">
+          <div className="flex items-center space-x-1 bg-[#1f2130] p-1 rounded-xl border border-[#2e3146]">
+            <button
+              type="button"
+              onClick={() => {
+                setBookingMode('now');
+                setDurationMinutes(0); // Sin límite por defecto
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                bookingMode === 'now'
+                  ? 'bg-[#10E364] text-black shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 fill-current" />
+              <span>Jugar Ahora</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setBookingMode('scheduled');
+                if (durationMinutes === 0) setDurationMinutes(60);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                bookingMode === 'scheduled'
+                  ? 'bg-[#00C3E3] text-black shadow-md'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span>Programar Turno</span>
+            </button>
           </div>
+
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#252839] transition-colors"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-[#252839]"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -175,7 +225,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
               1. ¿Quién va a jugar?
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {players.map(player => {
                 const isSelected = selectedPlayerId === player.id;
                 const avatar = getAvatarMeta(player.avatar);
@@ -185,10 +235,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     type="button"
                     key={player.id}
                     onClick={() => setSelectedPlayerId(player.id)}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                    className={`p-2 rounded-xl border flex flex-col items-center justify-center transition-all ${
                       isSelected
-                        ? 'border-white bg-[#26283d] scale-105 shadow-md'
-                        : 'border-[#2d3044] bg-[#1c1d2b] hover:bg-[#222436] text-gray-400'
+                        ? 'border-white bg-[#25273a] scale-105 shadow-md ring-2 ring-white/40'
+                        : 'border-[#292c3f] bg-[#1a1b26] hover:bg-[#222436] text-gray-400'
                     }`}
                   >
                     <div
@@ -210,184 +260,192 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* 2. DÍA Y HORA */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">
-              2. Día y Horario
-            </label>
+          {/* 2. DÍA Y HORA (Solo si es Programar Turno) */}
+          {bookingMode === 'scheduled' && (
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider">
+                2. Día y Horario
+              </label>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Fecha */}
-              <div>
-                <span className="text-[11px] text-gray-400 mb-1 block">Día:</span>
-                <input
-                  type="date"
-                  value={selectedDateStr}
-                  onChange={e => setSelectedDateStr(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#202233] border border-[#2f3248] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
-                  required
-                />
-              </div>
-
-              {/* Hora de inicio */}
-              <div>
-                <span className="text-[11px] text-gray-400 mb-1 block">Hora de inicio:</span>
-                <div className="flex gap-2">
-                  <select
-                    value={selectedHour}
-                    onChange={e => setSelectedHour(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-[#202233] border border-[#2f3248] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
-                  >
-                    {Array.from({ length: 16 }, (_, i) => i + 8).map(h => (
-                      <option key={h} value={h}>
-                        {h === 12 ? '12:00 PM' : h < 12 ? `${h}:00 AM` : `${h - 12}:00 PM`}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={selectedMinute}
-                    onChange={e => setSelectedMinute(Number(e.target.value))}
-                    className="px-3 py-2 rounded-xl bg-[#202233] border border-[#2f3248] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
-                  >
-                    <option value={0}>:00</option>
-                    <option value={30}>:30</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Duración */}
-            <div>
-              <span className="text-[11px] text-gray-400 mb-1.5 block">Duración del turno:</span>
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { label: '30 min', val: 30 },
-                  { label: '1 hora', val: 60 },
-                  { label: '1.5 h', val: 90 },
-                  { label: '2 horas', val: 120 },
-                ].map(d => (
-                  <button
-                    type="button"
-                    key={d.val}
-                    onClick={() => setDurationMinutes(d.val)}
-                    className={`py-2 text-xs font-bold rounded-xl border transition-all ${
-                      durationMinutes === d.val
-                        ? 'bg-[#FF3C28] text-white border-[#FF3C28] shadow-md'
-                        : 'bg-[#1e202f] text-gray-300 border-[#2f3246] hover:bg-[#25283b]'
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Resumen del intervalo */}
-            {interval && (
-              <div className="p-3 rounded-xl bg-[#13141d] border border-[#262838] flex items-center justify-between text-xs">
-                <span className="text-gray-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#00C3E3]" /> Intervalo:
-                </span>
-                <span className="font-mono font-bold text-white">
-                  {formatFriendlyTime(interval.start)} hasta {formatFriendlyTime(interval.end)}
-                </span>
-              </div>
-            )}
-
-            {/* Alerta de Conflicto en Tiempo Real */}
-            {conflicting ? (
-              <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/50 flex items-start space-x-2 text-red-300 text-xs">
-                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <strong className="block font-bold">¡Horario Ocupado!</strong>
-                  Ya está reservado por{' '}
-                  <span className="font-semibold text-white">
-                    {conflicting.player?.name || 'otro primo'}
-                  </span>{' '}
-                  ({formatFriendlyTime(conflicting.start_time)} -{' '}
-                  {formatFriendlyTime(conflicting.end_time)}).
+                  <span className="text-[11px] text-gray-400 mb-1 block">Fecha:</span>
+                  <input
+                    type="date"
+                    value={selectedDateStr}
+                    onChange={e => setSelectedDateStr(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-[#1e202f] border border-[#2d3044] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <span className="text-[11px] text-gray-400 mb-1 block">Hora de inicio:</span>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedHour}
+                      onChange={e => setSelectedHour(Number(e.target.value))}
+                      className="w-full px-3 py-2 rounded-xl bg-[#1e202f] border border-[#2d3044] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
+                    >
+                      {Array.from({ length: 16 }, (_, i) => i + 8).map(h => (
+                        <option key={h} value={h}>
+                          {h === 12 ? '12:00 PM' : h < 12 ? `${h}:00 AM` : `${h - 12}:00 PM`}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={selectedMinute}
+                      onChange={e => setSelectedMinute(Number(e.target.value))}
+                      className="px-3 py-2 rounded-xl bg-[#1e202f] border border-[#2d3044] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
+                    >
+                      <option value={0}>:00</option>
+                      <option value={30}>:30</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-green-950/30 border border-green-500/40 flex items-center space-x-2 text-green-300 text-xs">
-                <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                <span>Horario disponible para jugar sin interrupciones.</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* 3. JUEGO PLANIFICADO */}
+          {/* 3. DURACIÓN (OPCIONAL / SIN LÍMITE) */}
           <div>
-            <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
-              3. ¿Qué juego vas a jugar?
-            </label>
-            <div className="flex gap-2">
-              <select
-                value={selectedGame}
-                onChange={e => setSelectedGame(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-[#202233] border border-[#2f3248] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
-              >
-                {POPULAR_GAMES.map(g => (
-                  <option key={g.id} value={g.title}>
-                    {g.icon} {g.title}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                {bookingMode === 'now' ? '2. ¿Cuánto tiempo jugarás?' : '3. Duración del turno'}
+              </label>
+              <span className="text-[11px] text-gray-400">
+                (Opcional - puedes liberar al terminar)
+              </span>
             </div>
 
-            {selectedGame === 'Otro juego...' && (
-              <input
-                type="text"
-                placeholder="Escribe el nombre del juego..."
-                value={customGame}
-                onChange={e => setCustomGame(e.target.value)}
-                className="mt-2 w-full px-3 py-2 rounded-xl bg-[#202233] border border-[#2f3248] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
-              />
-            )}
+            {/* Opciones de Duración con soporte de más de 2 horas y Sin límite */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+              {[
+                { label: 'Sin límite', val: 0, icon: true },
+                { label: '1 hora', val: 60 },
+                { label: '2 horas', val: 120 },
+                { label: '3 horas', val: 180 },
+                { label: '4 horas', val: 240 },
+                { label: '5+ horas', val: 300 },
+              ].map(d => (
+                <button
+                  type="button"
+                  key={d.val}
+                  onClick={() => setDurationMinutes(d.val)}
+                  className={`py-2 px-1 text-xs font-bold rounded-xl border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                    durationMinutes === d.val
+                      ? 'bg-[#FF3C28] text-white border-[#FF3C28] shadow-md'
+                      : 'bg-[#1b1c28] text-gray-300 border-[#292c3d] hover:bg-[#232537]'
+                  }`}
+                >
+                  {d.icon && <InfinityIcon className="w-3.5 h-3.5" />}
+                  <span>{d.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Mensaje descriptivo del tiempo */}
+            <div className="mt-2 text-xs text-gray-400 flex items-center gap-1.5">
+              {durationMinutes === 0 ? (
+                <span className="text-[#10E364] flex items-center gap-1">
+                  <InfinityIcon className="w-3.5 h-3.5" />
+                  Juegas libremente hasta que presiones &quot;Liberar Switch&quot;.
+                </span>
+              ) : (
+                <span>
+                  Turno programado por {durationMinutes / 60}{' '}
+                  {durationMinutes === 60 ? 'hora' : 'horas'}.
+                </span>
+              )}
+            </div>
           </div>
 
           {/* 4. NOTA OPCIONAL */}
           <div>
             <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-1">
-              4. Nota opcional (para tus primos)
+              Nota opcional
             </label>
             <input
               type="text"
-              placeholder="Ej: Torneo familiar, paso un santuario, etc."
+              placeholder="Ej: Con amigos, reto familiar, etc."
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-[#202233] border border-[#2f3248] text-sm text-white focus:outline-none focus:border-[#00C3E3]"
-              maxLength={80}
+              className="w-full px-3 py-2 rounded-xl bg-[#1e202f] border border-[#2d3044] text-xs sm:text-sm text-white focus:outline-none focus:border-[#00C3E3]"
+              maxLength={70}
             />
           </div>
 
+          {/* Resumen del turno */}
+          {interval && (
+            <div className="p-3 rounded-xl bg-[#12131b] border border-[#222434] text-xs space-y-1">
+              <div className="flex items-center justify-between text-gray-300">
+                <span className="text-gray-400 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-[#00C3E3]" /> Inicio:
+                </span>
+                <span className="font-mono font-bold text-white">
+                  {bookingMode === 'now' ? 'Ahora mismo' : formatFriendlyTime(interval.start)}
+                </span>
+              </div>
+              {nextBooking && bookingMode === 'now' && (
+                <div className="text-[11px] text-amber-300/80 pt-1 border-t border-[#222434]">
+                  💡 Recuerda: {nextBooking.player?.name} tiene reservado a las{' '}
+                  {formatFriendlyTime(nextBooking.start_time)}.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Alerta de Conflicto si aplica */}
+          {conflicting && (
+            <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/50 flex items-start space-x-2 text-red-300 text-xs">
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-bold">¡Horario Ocupado!</strong>
+                Ya está reservado por{' '}
+                <span className="font-semibold text-white">
+                  {conflicting.player?.name || 'otro primo'}
+                </span>{' '}
+                ({formatFriendlyTime(conflicting.start_time)} -{' '}
+                {formatFriendlyTime(conflicting.end_time)}).
+              </div>
+            </div>
+          )}
+
           {submitError && (
-            <div className="p-3 rounded-xl bg-red-900/40 border border-red-500/60 text-xs text-red-200">
+            <div className="p-2.5 rounded-xl bg-red-900/40 border border-red-500/60 text-xs text-red-200">
               {submitError}
             </div>
           )}
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="pt-2 flex items-center justify-end space-x-3">
+          <div className="pt-2 flex items-center justify-end space-x-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-gray-400 hover:text-white bg-[#222435] hover:bg-[#2b2e42] transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white bg-[#1e202f]"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting || Boolean(conflicting)}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white shadow-lg transition-all flex items-center gap-2 ${
+              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white shadow-lg transition-all flex items-center gap-1.5 ${
                 Boolean(conflicting)
                   ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                  : 'bg-gradient-to-r from-[#FF3C28] to-[#e62b18] hover:from-[#ff513e] hover:to-[#f03825] glow-red active:scale-95'
+                  : bookingMode === 'now'
+                  ? 'bg-gradient-to-r from-[#10E364] to-[#0ea647] hover:from-[#17f070] text-black font-black active:scale-95'
+                  : 'bg-[#FF3C28] hover:bg-[#ff513e] glow-red active:scale-95'
               }`}
             >
               <Sparkles className="w-4 h-4" />
-              <span>{isSubmitting ? 'Guardando...' : 'Confirmar Reserva'}</span>
+              <span>
+                {isSubmitting
+                  ? 'Guardando...'
+                  : bookingMode === 'now'
+                  ? '¡Comenzar a Jugar Ya!'
+                  : 'Confirmar Turno'}
+              </span>
             </button>
           </div>
         </form>

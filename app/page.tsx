@@ -18,7 +18,6 @@ import { BookingModal } from '@/components/BookingModal';
 import { PlayersModal } from '@/components/PlayersModal';
 import { ReleaseModal } from '@/components/ReleaseModal';
 import { RulesModal } from '@/components/RulesModal';
-import { addHours } from 'date-fns';
 
 export default function HomePage() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -28,6 +27,7 @@ export default function HomePage() {
 
   // Modals state
   const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [bookingInitialMode, setBookingInitialMode] = useState<'now' | 'scheduled'>('now');
   const [isPlayersOpen, setIsPlayersOpen] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isReleaseOpen, setIsReleaseOpen] = useState(false);
@@ -67,15 +67,17 @@ export default function HomePage() {
   // Handler: Clic en slot vacío del calendario
   const handleSelectSlot = (date: Date, hour: number) => {
     setPreSelectedSlot({ date, hour });
+    setBookingInitialMode('scheduled');
     setIsBookingOpen(true);
   };
 
   // Handler: Guardar reserva
   const handleSaveBooking = async (bookingData: {
     player_id: string;
-    game_title: string;
+    game_title?: string;
     start_time: string;
     end_time: string;
+    is_open_ended?: boolean;
     notes?: string;
   }) => {
     const res = await createBooking(bookingData);
@@ -86,14 +88,21 @@ export default function HomePage() {
     return { success: false, error: res.error };
   };
 
-  // Handler: Quick Play (Jugar 1 hora a partir de este instante)
-  const handleQuickPlay = async () => {
+  // Handler: Quick Play / Reservar ahora mismo
+  const handleOpenBookingNow = () => {
     if (players.length === 0) {
       setIsPlayersOpen(true);
       return;
     }
-    const now = new Date();
-    setPreSelectedSlot({ date: now, hour: now.getHours() });
+    setPreSelectedSlot(null);
+    setBookingInitialMode('now');
+    setIsBookingOpen(true);
+  };
+
+  // Handler: Programar para después
+  const handleOpenBookingScheduled = () => {
+    setPreSelectedSlot(null);
+    setBookingInitialMode('scheduled');
     setIsBookingOpen(true);
   };
 
@@ -137,12 +146,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0b0c11] text-[#ededf0]">
-      {/* Header minimalista y compacto */}
+      {/* Header minimalista con botones directos: Jugar Ya y Programar */}
       <SwitchHeader
-        onOpenBooking={() => {
-          setPreSelectedSlot(null);
-          setIsBookingOpen(true);
-        }}
+        onOpenBookingNow={handleOpenBookingNow}
+        onOpenBookingScheduled={handleOpenBookingScheduled}
         onOpenPlayers={() => setIsPlayersOpen(true)}
         onOpenRules={() => setIsRulesOpen(true)}
         playersCount={players.length}
@@ -150,11 +157,11 @@ export default function HomePage() {
 
       {/* Contenido Principal enfocado en el Calendario */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-3.5">
-        {/* Barra de Estado en Vivo (delgada, compacta y elegante) */}
+        {/* Barra de Estado en Vivo (con soporte para turnos sin límite fijo) */}
         <LiveStatusStrip
           bookings={bookings}
           players={players}
-          onQuickPlay={handleQuickPlay}
+          onQuickPlay={handleOpenBookingNow}
           onRequestRelease={handleRequestRelease}
         />
 
@@ -193,7 +200,7 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {/* Modales */}
+      {/* Modal de Reserva con modo Ahora Mismo y duración flexible */}
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => {
@@ -204,6 +211,7 @@ export default function HomePage() {
         existingBookings={bookings}
         initialDate={preSelectedSlot?.date}
         initialHour={preSelectedSlot?.hour}
+        initialMode={bookingInitialMode}
         onSaveBooking={handleSaveBooking}
       />
 

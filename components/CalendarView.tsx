@@ -280,14 +280,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                 <span className="truncate">{booking.player?.name}</span>
                               </span>
                               <span className="text-[10px] font-mono text-gray-300">
-                                {formatFriendlyTime(booking.start_time)}
+                                {booking.is_open_ended
+                                  ? 'En curso'
+                                  : formatFriendlyTime(booking.start_time)}
                               </span>
                             </div>
 
-                            <div className="text-[11px] text-gray-300 truncate flex items-center gap-1 mt-0.5">
-                              <Gamepad2 className="w-3 h-3 text-[#00C3E3] flex-shrink-0" />
-                              <span className="truncate font-medium">{booking.game_title}</span>
-                            </div>
+                            {booking.notes ? (
+                              <div className="text-[11px] text-gray-300 truncate mt-0.5 italic">
+                                &quot;{booking.notes}&quot;
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-gray-400 truncate mt-0.5">
+                                {booking.is_open_ended ? 'Hasta liberar' : `${formatFriendlyTime(booking.start_time)} - ${formatFriendlyTime(booking.end_time)}`}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           // Espacio Libre (Clic para reservar)
@@ -356,18 +363,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               {booking.player?.name}
                             </span>
                             <span className="text-[11px] text-gray-300 font-mono">
-                              {formatFriendlyTime(booking.start_time)} - {formatFriendlyTime(booking.end_time)}
+                              {booking.is_open_ended
+                                ? `Desde ${formatFriendlyTime(booking.start_time)} (Sin límite fijo)`
+                                : `${formatFriendlyTime(booking.start_time)} - ${formatFriendlyTime(booking.end_time)}`}
                             </span>
                           </div>
-                          <div className="text-xs text-gray-300 flex items-center gap-1.5 mt-0.5">
-                            <Gamepad2 className="w-3.5 h-3.5 text-[#00C3E3]" />
-                            <span>{booking.game_title}</span>
-                            {booking.notes && (
-                              <span className="text-gray-400 italic hidden sm:inline">
-                                • {booking.notes}
-                              </span>
-                            )}
-                          </div>
+                          {booking.notes && (
+                            <div className="text-xs text-gray-400 italic mt-0.5">
+                              &quot;{booking.notes}&quot;
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -410,7 +415,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <h4 className="text-base font-black text-white">
                   {selectedBookingForDetail.player?.name}
                 </h4>
-                <p className="text-xs text-gray-400">Reserva de Nintendo Switch</p>
+                <p className="text-xs text-gray-400">Turno de Nintendo Switch</p>
               </div>
             </div>
 
@@ -424,21 +429,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="flex justify-between items-center text-gray-300">
                 <span className="text-gray-500">Horario:</span>
                 <span className="font-mono font-bold text-[#00C3E3]">
-                  {formatFriendlyTime(selectedBookingForDetail.start_time)} -{' '}
-                  {formatFriendlyTime(selectedBookingForDetail.end_time)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-gray-300">
-                <span className="text-gray-500">Juego:</span>
-                <span className="font-semibold text-white flex items-center gap-1">
-                  <Gamepad2 className="w-3.5 h-3.5 text-[#FF3C28]" />
-                  {selectedBookingForDetail.game_title}
+                  {selectedBookingForDetail.is_open_ended
+                    ? `Desde ${formatFriendlyTime(selectedBookingForDetail.start_time)} (Sin límite fijo)`
+                    : `${formatFriendlyTime(selectedBookingForDetail.start_time)} - ${formatFriendlyTime(selectedBookingForDetail.end_time)}`}
                 </span>
               </div>
               {selectedBookingForDetail.notes && (
                 <div className="border-t border-[#222434] pt-2 text-gray-400">
                   <span className="font-semibold text-gray-300">Nota:</span>{' '}
-                  {selectedBookingForDetail.notes}
+                  &quot;{selectedBookingForDetail.notes}&quot;
                 </div>
               )}
             </div>

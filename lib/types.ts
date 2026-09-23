@@ -10,9 +10,10 @@ export interface Player {
 export interface Booking {
   id: string;
   player_id: string;
-  game_title: string;
+  game_title?: string;
   start_time: string; // ISO 8601 string
   end_time: string;   // ISO 8601 string
+  is_open_ended?: boolean; // Si no se especificó duración fija
   status: 'active' | 'completed' | 'cancelled';
   notes?: string;
   created_at?: string;
